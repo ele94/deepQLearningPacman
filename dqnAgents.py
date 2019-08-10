@@ -48,8 +48,6 @@ class PacmanDQNAgent(ReinforcementAgent):
         ReinforcementAgent.__init__(self, **args)
 
         "*** YOUR CODE HERE ***"
-        self.state_size = 294
-        #self.state_size = 1320
         self.action_size = 5
         self.epsilon_min = 0.1
         self.epsilon_decay = 0.999
@@ -57,8 +55,7 @@ class PacmanDQNAgent(ReinforcementAgent):
         self.init = 0
         self.epsilon = 1.0
         self.alpha = 0.001
-        #self.alpha = 1e-6
-        self.discount = 0.95
+        self.discount = 0.99
         self.batch_size = 35
         self.alpha_decay = 0.01
         self.frame_width = 85
@@ -70,10 +67,6 @@ class PacmanDQNAgent(ReinforcementAgent):
         self.model = self._build_model()
 
         print 'INIT'
-
-        numpy.set_printoptions(threshold=sys.maxsize)
-
-
 
     # def getQValue(self, state, action):
     #     """
@@ -152,6 +145,10 @@ class PacmanDQNAgent(ReinforcementAgent):
         #img = Image.fromarray(self.image[0], 'RGB')
         #img.save("frames/my"+str(datetime.now())+".png")
 
+        #if self.count > 2:
+            #print "------------------------------"
+            #self.test(self.image)
+            #print "------------------------------"
         #print 'Epsilon value: ', self.epsilon
         if self.epsilon > random.random():
             action = random.choice(legalActions)  # Explore
@@ -212,13 +209,6 @@ class PacmanDQNAgent(ReinforcementAgent):
             self.nextImage = np.uint8(self.nextImage)
         else:
             self.nextImage = None
-        #new code
-
-
-        # state_matrix = self.getStateMatrices(state)
-        # nextState_matrix = self.getStateMatrices(nextState)
-        # state_matrix = np.reshape(state_matrix, [1, self.state_size])
-        # nextState_matrix = np.reshape(nextState_matrix, [1, self.state_size])
 
         self.count += 1
         if not self.new_episode: #no guardamos la primera imagen porque da problemas
@@ -227,7 +217,6 @@ class PacmanDQNAgent(ReinforcementAgent):
         # entrenamos la red neuronal solo mientras estamos en entrenamiento
         #if self.episodesSoFar < self.numTraining:
         #if self.episodesSoFar < self.numTraining:
-
 
         if len(self.memory) > 5*self.batch_size:
             self.replay(self.batch_size)
@@ -293,14 +282,14 @@ class PacmanDQNAgent(ReinforcementAgent):
         model.add(Dense(512, activation='relu'))
         model.add(Dense(self.action_size))
         #model.compile(loss='mse', optimizer=Adam(lr=self.alpha))
-        model.compile(loss='mse', optimizer='adam', metrics= ["accuracy"])
+        model.compile(loss='logcosh', optimizer='adam', metrics= ["accuracy"])
         #model.compile(loss=losses.mean_squared_logarithmic_error, optimizer='adam', metrics= ["accuracy"])
-
 
         return model
 
     def remember(self, state, action, reward, next_state, done):
         action_index = PACMAN_ACTIONS.index(action)
+        reward = self.normalize_reward(reward)
         self.memory.append((state, action_index, reward, next_state, done))
 
     def replay(self, batch_size):
@@ -317,16 +306,29 @@ class PacmanDQNAgent(ReinforcementAgent):
             # img = Image.fromarray(next_state[0], 'RGB')
             # img.save("frames/my"+str(datetime.now())+".png")
             state=state/255.0
-            next_state=next_state/255.0
+            if next_state is not None:
+                next_state=next_state/255.0
             y_target = self.model.predict(state)
+            #print "y_target: ", y_target
             y_target[0][action_index] = reward if done else reward + self.discount * np.max(self.model.predict(next_state)[0])
+            #print "y_target[0][action_index] updated: ", y_target
             x_batch.append(state[0])
             y_batch.append(y_target[0])
 
-        self.model.fit(np.array(x_batch), np.array(y_batch), batch_size=len(x_batch), verbose=0)
+        self.model.fit(np.array(x_batch), np.array(y_batch), batch_size=len(x_batch), verbose=1)
         #W_Input_Hidden = self.model.layers[0].get_weights()[0]
         #print W_Input_Hidden
 
         if self.epsilon > self.epsilon_min:
             #None
             self.epsilon *= self.epsilon_decay
+
+    def normalize_reward(self,reward):
+        if reward == -1:
+            reward = 0
+        return np.sign(reward)
+
+    def test(self, image):
+        print self.model.predict(self.image/255.0)
+        self.replay(1)
+        print self.model.predict(self.image/255.0)
