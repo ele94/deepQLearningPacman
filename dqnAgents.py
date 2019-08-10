@@ -63,9 +63,13 @@ class PacmanDQNAgent(ReinforcementAgent):
         self.alpha_decay = 0.01
         self.frame_width = 85
         self.frame_height = 85
+        self.image = None
+        self.new_episode = True
 
-        self.memory = deque(maxlen=5000)
+        self.memory = deque(maxlen=100000)
         self.model = self._build_model()
+
+        print 'INIT'
 
         numpy.set_printoptions(threshold=sys.maxsize)
 
@@ -132,14 +136,19 @@ class PacmanDQNAgent(ReinforcementAgent):
         "*** YOUR CODE HERE ***"
         if not self.getLegalActions(state): return action  # Terminal State, return None
 
-        self.image = getFrame()
-        self.image = np.array(self.image)
-        self.image = resize(self.image, (self.frame_height, self.frame_width), order=0, anti_aliasing=True)
-        #self.image = 255 * self.image
-        #self.image = np.uint8(self.image)
-        self.image = np.reshape(self.image, [1,self.frame_height, self.frame_width,3])
-        self.image = 255 * self.image
-        self.image = np.uint8(self.image)
+        if self.image is None: # we only need to compute it the first time. afterwards, well get the nextframe
+            self.new_episode = True
+            print 'self.image was none'
+            self.image = getFrame()
+            self.image = np.array(self.image)
+            self.image = resize(self.image, (self.frame_height, self.frame_width), order=0, anti_aliasing=True)
+            #self.image = 255 * self.image
+            #self.image = np.uint8(self.image)
+            self.image = np.reshape(self.image, [1,self.frame_height, self.frame_width,3])
+            self.image = 255 * self.image
+            self.image = np.uint8(self.image)
+        else:
+            self.new_episode = False
         #img = Image.fromarray(self.image[0], 'RGB')
         #img.save("frames/my"+str(datetime.now())+".png")
 
@@ -152,7 +161,7 @@ class PacmanDQNAgent(ReinforcementAgent):
             #state_matrix = np.reshape(np.array(state_matrix), [1, self.state_size])
             #state_matrix = np.reshape(state_matrix, (1, self.frame_width, self.frame_height))
 
-            act_values = self.model.predict(self.image)
+            act_values = self.model.predict(self.image/255.0)
 
             for value in act_values[0]:
                 action = PACMAN_ACTIONS[(np.argmax(act_values[0]))]
@@ -188,37 +197,54 @@ class PacmanDQNAgent(ReinforcementAgent):
           NOTE: You should never call this function,
           it will be called on your behalf
         """
-        "*** YOUR CODE HERE ***"
-        self.nextImage = getFrame()
-        self.nextImage = numpy.array(self.nextImage)
-        self.nextImage = resize(self.nextImage, (self.frame_width, self.frame_height))
-        self.nextImage = np.reshape(self.nextImage, [1, self.frame_height, self.frame_width, 3])
-        self.nextImage = 255 * self.nextImage
-        self.nextImage = np.uint8(self.nextImage)
-        #new code
         if not self.getLegalActions(nextState):
             done = True
         else:
             done = False
+        "*** YOUR CODE HERE ***"
+
+        if not done:
+            self.nextImage = getFrame()
+            self.nextImage = numpy.array(self.nextImage)
+            self.nextImage = resize(self.nextImage, (self.frame_width, self.frame_height))
+            self.nextImage = np.reshape(self.nextImage, [1, self.frame_height, self.frame_width, 3])
+            self.nextImage = 255 * self.nextImage
+            self.nextImage = np.uint8(self.nextImage)
+        else:
+            self.nextImage = None
+        #new code
+
 
         # state_matrix = self.getStateMatrices(state)
         # nextState_matrix = self.getStateMatrices(nextState)
         # state_matrix = np.reshape(state_matrix, [1, self.state_size])
         # nextState_matrix = np.reshape(nextState_matrix, [1, self.state_size])
 
-        self.remember(self.image, action, reward, self.nextImage, done)
+        self.count += 1
+        if not self.new_episode: #no guardamos la primera imagen porque da problemas
+            self.remember(self.image, action, reward, self.nextImage, done)
 
         # entrenamos la red neuronal solo mientras estamos en entrenamiento
         #if self.episodesSoFar < self.numTraining:
         #if self.episodesSoFar < self.numTraining:
 
-        if len(self.memory) > 1*self.batch_size:
+
+        if len(self.memory) > 5*self.batch_size:
             self.replay(self.batch_size)
 
-        self.count += 1
-        if self.count % 100 == 0:
+        if self.count % 1000 == 0:
             self.model.save_weights("models/model" + str(self.count) + ".h5")
             print "saved file: models/model" + str(self.count) + ".h5"
+
+        if self.count % 10000 == 0 and not self.new_episode:
+            img = Image.fromarray(self.image[0], 'RGB')
+            img.save("frames/"+str(datetime.now())+"image.png")
+            if not self.nextImage is None:
+                img = Image.fromarray(self.nextImage[0], 'RGB')
+                img.save("frames/" + str(datetime.now()) + "nextimage.png")
+
+        self.image = self.nextImage #updating old image
+
 
     # def getPolicy(self, state):
     #     return self.computeActionFromQValues(state)
@@ -267,8 +293,8 @@ class PacmanDQNAgent(ReinforcementAgent):
         model.add(Dense(512, activation='relu'))
         model.add(Dense(self.action_size))
         #model.compile(loss='mse', optimizer=Adam(lr=self.alpha))
-        #model.compile(loss='mse', optimizer='adam', metrics= ["accuracy"])
-        model.compile(loss=losses.mean_squared_logarithmic_error, optimizer='adam', metrics= ["accuracy"])
+        model.compile(loss='mse', optimizer='adam', metrics= ["accuracy"])
+        #model.compile(loss=losses.mean_squared_logarithmic_error, optimizer='adam', metrics= ["accuracy"])
 
 
         return model
@@ -297,7 +323,7 @@ class PacmanDQNAgent(ReinforcementAgent):
             x_batch.append(state[0])
             y_batch.append(y_target[0])
 
-        self.model.fit(np.array(x_batch), np.array(y_batch), batch_size=len(x_batch), verbose=1)
+        self.model.fit(np.array(x_batch), np.array(y_batch), batch_size=len(x_batch), verbose=0)
         #W_Input_Hidden = self.model.layers[0].get_weights()[0]
         #print W_Input_Hidden
 
