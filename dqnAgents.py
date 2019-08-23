@@ -70,7 +70,14 @@ class PacmanDQNAgent(ReinforcementAgent):
         self.training = True
         self.best_score = -10000
 
+        #test for 4 consecutive frames
+        self.image_stack = []
+        self.nextImage_stack = []
+
         self.memory = deque(maxlen=100000)
+
+        self.memory_stack = deque(maxlen=100000)
+
         self.model = self._build_model()
         self.double_model = copy.deepcopy(self.model)
 
@@ -100,6 +107,9 @@ class PacmanDQNAgent(ReinforcementAgent):
             # self.new_episode = True
             self.image = self.process_frame(getFrame())
             self.new_episode = False
+
+        # test
+        self.image_stack.append(copy.deepcopy(self.image/255.0))
 
         # epsilon greedy: exploit - explore
         if self.epsilon > random.random():
@@ -138,11 +148,20 @@ class PacmanDQNAgent(ReinforcementAgent):
 
         if not done:
             self.nextImage = self.process_frame(getFrame())
+
+            # test
+            self.nextImage_stack.append(copy.deepcopy(self.nextImage/255.0))
+
         else:
             self.nextImage = None
 
         if not self.new_episode: # saving the first episode gives us trouble, so we skip it
             self.remember(self.image, action, reward, self.nextImage, done)
+
+            if len(self.image_stack) == 4:
+                self.remember_stack(self.image_stack, action, reward, self.nextImage_stack, done)
+                self.image_stack = []
+                self.nextImage_stack = []
 
         # entrenamos la red neuronal solo mientras estamos en entrenamiento
         #if self.episodesSoFar < self.numTraining:
@@ -150,7 +169,8 @@ class PacmanDQNAgent(ReinforcementAgent):
 
         self.count += 1
         if len(self.memory) > 5*self.batch_size and self.training: # we only update the network while it's training
-            self.replay(self.batch_size)
+            #self.replay(self.batch_size)
+            self.replay_batch(self.batch_size)
 
         # we save the model and deque every 1000 steps for safekeeping
         if self.count % 1000 == 0: #1000
@@ -212,7 +232,14 @@ class PacmanDQNAgent(ReinforcementAgent):
         action_index = PACMAN_ACTIONS.index(action)
         #reward = self.normalize_reward(reward)
         if state is not None:
-            self.memory.append((state, action_index, reward, next_state, done))
+            self.memory.append((copy.deepcopy(state), action_index, reward, copy.deepcopy(next_state), done))
+
+    def remember_stack(self, state, action, reward, next_state, done):
+        action_index = PACMAN_ACTIONS.index(action)
+        #reward = self.normalize_reward(reward)
+        if state is not None:
+            self.memory_stack.append((copy.deepcopy(state), action_index, reward, copy.deepcopy(next_state), done))
+
 
     def replay(self, batch_size):
         x_batch, y_batch = [], []
@@ -238,6 +265,28 @@ class PacmanDQNAgent(ReinforcementAgent):
 
         if self.epsilon > self.epsilon_min: # TODO: add timer before starting decay?
             self.epsilon *= self.epsilon_decay
+
+    def replay_batch(self, batch_size):
+        x_batch, y_batch = [], []
+        minibatch = random.sample(self.memory_stack, batch_size)
+        for state, action_index, reward, next_state, done in minibatch:
+
+            y_target = self.model.predict(state)
+            y_target[0][action_index] = reward if done else reward + self.discount * np.max(self.model.predict(next_state)[0])
+            x_batch.append(state[0])
+            y_batch.append(y_target[0])
+
+        #self.model.fit(np.array(x_batch), np.array(y_batch), batch_size=len(x_batch), verbose=0)
+        self.double_model.fit(np.array(x_batch), np.array(y_batch), batch_size=len(x_batch), verbose=0)
+
+        # we update the double network weights to the main network every 100 steps
+        if self.count % 100 == 0:
+            self.double_model.save_weights("models/double_model.h5")
+            self.model.load_weights("models/double_model.h5")
+
+        if self.epsilon > self.epsilon_min: # TODO: add timer before starting decay?
+            self.epsilon *= self.epsilon_decay
+
 
     ##### HELPER METHODS #########
     def normalize_reward(self,reward):
