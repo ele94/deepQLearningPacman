@@ -19,6 +19,7 @@ import tensorflow as tf
 from datetime import datetime
 from keras import losses
 from PIL import Image
+import gc, pickle, copy
 
 PACMAN_ACTIONS = ['North', 'South', 'East', 'West', 'Stop']
 
@@ -49,6 +50,9 @@ class PacmanDQNAgent(ReinforcementAgent):
         ReinforcementAgent.__init__(self, **args)
 
         "*** YOUR CODE HERE ***"
+
+        #gc.set_debug(gc.DEBUG_UNCOLLECTABLE | gc.DEBUG_STATS | gc.DEBUG_OBJECTS) #debugging for memory leaks
+        #print "IS GC ENABLED: ", gc.isenabled()
         self.action_size = 5
         self.epsilon_min = 0.1
         self.epsilon_decay = 0.99
@@ -64,12 +68,14 @@ class PacmanDQNAgent(ReinforcementAgent):
         self.image = None
         self.new_episode = True
         self.training = True
+        self.best_score = -10000
 
         self.memory = deque(maxlen=100000)
         self.model = self._build_model()
-        self.double_model = self._build_model()
+        self.double_model = copy.deepcopy(self.model)
 
-        #self.model.load_weights("models/model.h5") #uncomment to load old weights
+        #self.model.load_weights("models/best/model.h5") #uncomment to load old weights
+        #self.double_model.load_weights("models/best/model.h5")
 
     def getAction(self, state):
         """
@@ -146,10 +152,11 @@ class PacmanDQNAgent(ReinforcementAgent):
         if len(self.memory) > 5*self.batch_size and self.training: # we only update the network while it's training
             self.replay(self.batch_size)
 
-        # we save the model every 1000 steps for safekeeping
-        if self.count % 1000 == 0:
+        # we save the model and deque every 1000 steps for safekeeping
+        if self.count % 1000 == 0: #1000
             self.model.save_weights("models/model.h5")
             print "saved file: models/model.h5"
+            self.double_model.save_weights("models/double_model.h5")
 
         # we save the frames every 10000 steps for debugging purposes
         if self.count % 10000 == 0 and not self.new_episode:
@@ -159,14 +166,26 @@ class PacmanDQNAgent(ReinforcementAgent):
                 img = Image.fromarray(self.nextImage[0], 'RGB')
                 img.save("frames/" + str(datetime.now()) + "nextimage.png")
 
-        self.image = self.nextImage #updating old image
+        self.image = copy.deepcopy(self.nextImage) #updating old image
 
     def final(self, state):
         "Called at the end of each game."
         # call the super-class final method
         ReinforcementAgent.final(self, state)
-
+        #gc.collect() #por si escaso
+        #del gc.garbage[:] # por si escaso
+        print "memory length: ", len(self.memory)
         self.new_episode = True
+        if self.training and state.getScore() > self.best_score:
+            self.model.save_weights("models/best_model.h5")
+            self.double_model.save_weights("models/best_dobule_model.h5")
+            self.best_score = state.getScore()
+            print "updated best models for best score: ", self.best_score
+        if self.episodesSoFar % 1500 == 0:
+            print "starting memory dump"
+            with open('models/memory.dictionary', 'wb') as memory_deque_file:
+                pickle.dump(self.memory, memory_deque_file)
+            print "finished memory dump"
         # did we finish training?
         if self.episodesSoFar == self.numTraining:
             # you might want to print your weights here for debugging
@@ -191,8 +210,9 @@ class PacmanDQNAgent(ReinforcementAgent):
 
     def remember(self, state, action, reward, next_state, done):
         action_index = PACMAN_ACTIONS.index(action)
-        reward = self.normalize_reward(reward)
-        self.memory.append((state, action_index, reward, next_state, done))
+        #reward = self.normalize_reward(reward)
+        if state is not None:
+            self.memory.append((state, action_index, reward, next_state, done))
 
     def replay(self, batch_size):
         x_batch, y_batch = [], []
@@ -224,6 +244,8 @@ class PacmanDQNAgent(ReinforcementAgent):
         return np.sign(reward)
 
     def process_frame(self, frame):
+        if frame is None:
+            return None
         frame = np.array(frame)
         frame = resize(frame, (self.frame_width, self.frame_height))
         frame = np.reshape(frame, [1, self.frame_height, self.frame_width, self.state_size])

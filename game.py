@@ -524,7 +524,7 @@ class Game:
         self.gameOver = False
         self.muteAgents = muteAgents
         self.catchExceptions = catchExceptions
-        self.moveHistory = []
+        #self.moveHistory = []
         self.totalAgentTimes = [0 for agent in agents]
         self.totalAgentTimeWarnings = [0 for agent in agents]
         self.agentTimeout = False
@@ -686,7 +686,7 @@ class Game:
             self.unmute()
 
             # Execute the action
-            self.moveHistory.append( (agentIndex, action) )
+            #self.moveHistory.append( (agentIndex, action) )
             if self.catchExceptions:
                 try:
                     self.state = self.state.generateSuccessor( agentIndex, action )

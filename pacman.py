@@ -46,7 +46,7 @@ from game import Actions
 from util import nearestPoint
 from util import manhattanDistance
 import util, layout
-import sys, types, time, random, os
+import sys, types, time, random, os, gc
 
 ###################################################
 # YOUR INTERFACE TO THE PACMAN WORLD: A GameState #
@@ -631,7 +631,12 @@ def runGames( layout, pacman, ghosts, display, numGames, record, numTraining = 0
 
     rules = ClassicGameRules(timeout)
     games = []
+    #scores = []
+    #wins = []
+    #gc.set_debug(gc.DEBUG_UNCOLLECTABLE | gc.DEBUG_STATS | gc.DEBUG_OBJECTS)  # debugging for memory leaks
 
+    import time
+    start = time.time()
     for i in range( numGames ):
         beQuiet = i < numTraining
         if beQuiet:
@@ -645,7 +650,10 @@ def runGames( layout, pacman, ghosts, display, numGames, record, numTraining = 0
             rules.quiet = False
         game = rules.newGame( layout, pacman, ghosts, gameDisplay, beQuiet, catchExceptions)
         game.run()
-        if not beQuiet: games.append(game)
+        if not beQuiet:
+            games.append(game)
+            #scores.append(game.state.getScore())
+            #wins.append(game.state.isWin())
 
         if record:
             import time, cPickle
@@ -654,8 +662,12 @@ def runGames( layout, pacman, ghosts, display, numGames, record, numTraining = 0
             components = {'layout': layout, 'actions': game.moveHistory}
             cPickle.dump(components, f)
             f.close()
+        gc.collect() #por si escaso
+        del gc.garbage[:] # por si escaso
 
     if (numGames-numTraining) > 0:
+        end_training = time.time()
+        print "execution time: ", end_training - start
         scores = [game.state.getScore() for game in games]
         wins = [game.state.isWin() for game in games]
         winRate = wins.count(True)/ float(len(wins))
@@ -664,7 +676,7 @@ def runGames( layout, pacman, ghosts, display, numGames, record, numTraining = 0
         print 'Win Rate:      %d/%d (%.2f)' % (wins.count(True), len(wins), winRate)
         print 'Record:       ', ', '.join([ ['Loss', 'Win'][int(w)] for w in wins])
 
-    return games
+    #return games
 
 if __name__ == '__main__':
     """

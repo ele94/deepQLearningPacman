@@ -386,7 +386,16 @@ def getImage():
     x1=x+_canvas.winfo_width()
     y1=y+_canvas.winfo_height()
 
-    im = grab(bbox=(x+5, y+5, x1-5, y1-35))
+    try:
+        im = grab(bbox=(x+5, y+5, x1-5, y1-35), childprocess=False)
+    except OSError:
+        print "OSError trying to print screen"
+        sleep(0.01)
+        print "Trying again"
+        im = grab(bbox=(x+5, y+5, x1-5, y1-35), childprocess=False)
+    except:
+        print "error trying to grab bbox"
+        im = None
     #im.save("test" + str(datetime.now()) + str(random.random()) +".png")
     #im.show()
     return im
