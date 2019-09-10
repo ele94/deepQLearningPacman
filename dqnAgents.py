@@ -70,12 +70,14 @@ class PacmanDQNAgent(ReinforcementAgent):
         self.training = True
         self.best_score = -10000
 
-        self.memory = deque(maxlen=100000)
+        self.memory = deque(maxlen=50000)
         self.model = self._build_model()
         self.double_model = copy.deepcopy(self.model)
 
-        #self.model.load_weights("models/best/model.h5") #uncomment to load old weights
-        #self.double_model.load_weights("models/best/model.h5")
+        # Uncomment to load an existing model
+        # self.model.load_weights("models/smallclassic10000/best_model.h5") #uncomment to load old weights
+        # self.double_model.load_weights("models/smallclassic10000/best_model.h5")
+        #  self.epsilon = 0
 
     def getAction(self, state):
         """
@@ -155,16 +157,16 @@ class PacmanDQNAgent(ReinforcementAgent):
         # we save the model and deque every 1000 steps for safekeeping
         if self.count % 1000 == 0: #1000
             self.model.save_weights("models/model.h5")
-            print "saved file: models/model.h5"
+            #print "saved file: models/model.h5"
             self.double_model.save_weights("models/double_model.h5")
 
         # we save the frames every 10000 steps for debugging purposes
-        if self.count % 10000 == 0 and not self.new_episode:
+        if self.count % 5000 == 0 and not self.new_episode:
             img = Image.fromarray(self.image[0], 'RGB')
-            img.save("frames/"+str(datetime.now())+"image.png")
+            img.save("frames/"+str(datetime.now())+ action +"image.png")
             if not self.nextImage is None:
                 img = Image.fromarray(self.nextImage[0], 'RGB')
-                img.save("frames/" + str(datetime.now()) + "nextimage.png")
+                img.save("frames/" + str(datetime.now()) + action + "nextimage.png")
 
         self.image = copy.deepcopy(self.nextImage) #updating old image
 
@@ -174,18 +176,20 @@ class PacmanDQNAgent(ReinforcementAgent):
         ReinforcementAgent.final(self, state)
         #gc.collect() #por si escaso
         #del gc.garbage[:] # por si escaso
-        print "memory length: ", len(self.memory)
+        #print "memory length: ", len(self.memory)
         self.new_episode = True
         if self.training and state.getScore() > self.best_score:
             self.model.save_weights("models/best_model.h5")
-            self.double_model.save_weights("models/best_dobule_model.h5")
+            self.double_model.save_weights("models/best_double_model.h5")
             self.best_score = state.getScore()
             print "updated best models for best score: ", self.best_score
-        if self.episodesSoFar % 1500 == 0:
-            print "starting memory dump"
-            with open('models/memory.dictionary', 'wb') as memory_deque_file:
-                pickle.dump(self.memory, memory_deque_file)
-            print "finished memory dump"
+        if self.episodesSoFar % 1000 == 0 and self.training:
+            #print "starting memory dump"
+            # with open('models/memory.dictionary', 'wb') as memory_deque_file:
+            #     pickle.dump(self.memory, memory_deque_file)
+            # print "finished memory dump"
+            self.model.save_weights("models/" + str(self.episodesSoFar)+ "model.h5")
+            self.double_model.save_weights("models/" + str(self.episodesSoFar) + "double_model.h5")
         # did we finish training?
         if self.episodesSoFar == self.numTraining:
             # you might want to print your weights here for debugging
@@ -212,7 +216,7 @@ class PacmanDQNAgent(ReinforcementAgent):
         action_index = PACMAN_ACTIONS.index(action)
         #reward = self.normalize_reward(reward)
         if state is not None:
-            self.memory.append((state, action_index, reward, next_state, done))
+            self.memory.append((copy.deepcopy(state), action_index, reward, copy.deepcopy(next_state), done))
 
     def replay(self, batch_size):
         x_batch, y_batch = [], []
@@ -236,7 +240,7 @@ class PacmanDQNAgent(ReinforcementAgent):
             self.double_model.save_weights("models/double_model.h5")
             self.model.load_weights("models/double_model.h5")
 
-        if self.epsilon > self.epsilon_min: # TODO: add timer before starting decay?
+        if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
     ##### HELPER METHODS #########

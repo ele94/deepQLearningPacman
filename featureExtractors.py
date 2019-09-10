@@ -103,7 +103,7 @@ class SimpleExtractor(FeatureExtractor):
         return features
 
 
-class myFeatureExtractor(FeatureExtractor):
+class MyFeatureExtractor(FeatureExtractor):
     """
         Returns simple features for a basic reflex Pacman:
         - whether food will be eaten
@@ -157,16 +157,14 @@ class myFeatureExtractor(FeatureExtractor):
         if distScaredGhost is not None:
             features["closest-scared-ghost"] = float(distScaredGhost) / (walls.width * walls.height)
 
-        # if not features["#-of-ghosts-1-step-away"] and features["closest-scared-ghost"] and
-        # distClosestCapsule = closestCapsule((next_x, next_y), capsules, walls)
-        # if distClosestCapsule is not None:
-        #     features["closest-capsule"] = float(distClosestCapsule) / (walls.width * walls.height)
+        # distClosestCapsule = None
+        # if not features["#-of-ghosts-1-step-away"] and features["closest-scared-ghost"]:
+        distClosestCapsule = closestCapsule((next_x, next_y), capsules, walls)
+        if distClosestCapsule is not None:
+            features["closest-capsule"] = float(distClosestCapsule) / (walls.width * walls.height)
 
         features.divideAll(10.0)
         return features
-
-
-
 
 
 def closestScaredGhost(pos, ghosts, walls, ghostStates):
@@ -192,3 +190,60 @@ def closestScaredGhost(pos, ghosts, walls, ghostStates):
     return None
 
 # def closestCapsule(pos, capsules, walls):
+
+
+# def closestCapsule(pos, capsules, walls):
+#     """
+#     closestFood -- this is similar to the function that we have
+#     worked on in the search project; here its all in one place
+#     """
+#     fringe = [(pos[0], pos[1], 0)]
+#     expanded = set()
+#     while fringe:
+#         pos_x, pos_y, dist = fringe.pop(0)
+#         # if we find a food at this location then exit
+#         print capsules
+#         if capsules[pos_x][pos_y]:
+#             return dist
+#         # otherwise spread out from the location to its neighbours
+#         nbrs = Actions.getLegalNeighbors((pos_x, pos_y), walls)
+#         for nbr_x, nbr_y in nbrs:
+#             fringe.append((nbr_x, nbr_y, dist+1))
+#     # no food found
+#     return None      if (pos_x, pos_y) in expanded:
+#             continue
+#         expanded.add((pos_x, pos_y))
+#         # if we find a food at this location then exit
+#         print capsules
+#         if capsules[pos_x][pos_y]:
+#             return dist
+#         # otherwise spread out from the location to its neighbours
+#         nbrs = Actions.getLegalNeighbors((pos_x, pos_y), walls)
+#         for nbr_x, nbr_y in nbrs:
+#             fringe.append((nbr_x, nbr_y, dist+1))
+#     # no food found
+#     return None
+
+
+
+def closestCapsule(pos, capsules, walls):
+    """
+    closestCapsule -- this is similar to the closestFood function, but for
+    scared ghost.
+    """
+    fringe = [(pos[0], pos[1], 0)]
+    expanded = set()
+    while fringe:
+        pos_x, pos_y, dist = fringe.pop(0)
+        if (pos_x, pos_y) in expanded:
+            continue
+        expanded.add((pos_x, pos_y))
+        # if we find a scared ghost at this location then exit
+        if any(capsule == (pos_x, pos_y) for capsule in capsules):
+            return dist
+        # otherwise spread out from the location to its neighbours
+        nbrs = Actions.getLegalNeighbors((pos_x, pos_y), walls)
+        for nbr_x, nbr_y in nbrs:
+            fringe.append((nbr_x, nbr_y, dist+1))
+    # no scared ghost found
+    return None

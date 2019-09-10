@@ -642,8 +642,8 @@ def runGames( layout, pacman, ghosts, display, numGames, record, numTraining = 0
         if beQuiet:
                 # Suppress output and graphics
             import textDisplay
-            #gameDisplay = textDisplay.NullGraphics()
-            gameDisplay = display
+            gameDisplay = textDisplay.NullGraphics()  # uncomment to not show display during training
+            # gameDisplay = display   # comment to not show display during training
             rules.quiet = True
         else:
             gameDisplay = display
