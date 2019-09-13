@@ -282,7 +282,7 @@ class ApproximateQAgent(PacmanQAgent):
 
 class MyApproximateQAgent(PacmanQAgent):
 
-    def __init__(self, extractor='IdentityExtractor', **args):
+    def __init__(self, extractor='MyFeatureExtractor', **args):
         self.featExtractor = util.lookup(extractor, globals())()
         PacmanQAgent.__init__(self, **args)
 

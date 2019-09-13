@@ -180,7 +180,7 @@ def closestScaredGhost(pos, ghosts, walls, ghostStates):
             continue
         expanded.add((pos_x, pos_y))
         # if we find a scared ghost at this location then exit
-        if any(ghost == (pos_x, pos_y) and ghostStates[ghosts.index(ghost)].scaredTimer <= 0 for ghost in ghosts):
+        if any(ghost == (pos_x, pos_y) and ghostStates[ghosts.index(ghost)].scaredTimer > 0 for ghost in ghosts):
             return dist
         # otherwise spread out from the location to its neighbours
         nbrs = Actions.getLegalNeighbors((pos_x, pos_y), walls)
